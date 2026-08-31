@@ -1,0 +1,22 @@
+# Cloudflare API Token
+# Get it from: https://dash.cloudflare.com → My Profile → API Tokens → Create Custom Token
+# Permissions: Zone → DNS → Edit, Zone → Worker Routes → Edit, Account → Workers Scripts → Edit
+cloudflare_api_token = "YOUR_CLOUDFLARE_API_TOKEN"
+
+# Cloudflare Zone ID
+# Found in: Cloudflare Dashboard → your domain → Overview (bottom right)
+zone_id = "YOUR_ZONE_ID"
+
+# Domain name to manage
+domain = "khangduytran.xyz"
+
+# Cloudflare Account ID
+# Found in: Cloudflare Dashboard → right sidebar
+account_id = "YOUR_ACCOUNT_ID"
+
+# Cloudflare Worker name
+worker_name = "docs-worker"
+
+# Origin server IP address
+# The IP your DNS record will point to
+origin_ip = "YOUR_ORIGIN_IP"

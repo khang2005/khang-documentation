@@ -1,0 +1,9 @@
+name = "docs-worker"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+account_id = "b027b5c8a41425260467575fbae51333"
+
+r2_buckets = [
+  { binding = "DOCS", bucket_name = "khang-documentation" }
+]
