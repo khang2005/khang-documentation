@@ -53,38 +53,97 @@ jobs:
             return mimeTypes[ext] || 'application/octet-stream';
           }
 
-          async function uploadFile(filepath, key) {
-            const body = fs.readFileSync(filepath);
-            const contentType = getContentType(filepath);
-            
-            const response = await fetch(
-              `https://api.cloudflare.com/client/v4/accounts/${accountId}/r2/buckets/${bucket}/objects/${key}`,
-              { method: 'PUT', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': contentType }, body }
-            );
-            const data = await response.json();
-            if (!data.success) {
-              console.error(`Failed to upload ${key}:`, data);
-            } else {
-              console.log(`✓ ${key}`);
-            }
-          }
-
-          async function uploadDir(dir, prefix = '') {
+          function collectFiles(dir, prefix = '', out = []) {
             for (const file of fs.readdirSync(dir)) {
               const filepath = path.join(dir, file);
               const stat = fs.statSync(filepath);
               if (stat.isDirectory()) {
-                await uploadDir(filepath, prefix + file + '/');
+                collectFiles(filepath, prefix + file + '/', out);
               } else {
-                const r2Key = prefix + file;
-                await uploadFile(filepath, r2Key);
+                out.push({ filepath, key: prefix + file });
               }
+            }
+            return out;
+          }
+
+          const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+          async function uploadFile(file, attempt = 1) {
+            const body = fs.readFileSync(file.filepath);
+            const contentType = getContentType(file.filepath);
+            const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/r2/buckets/${encodeURIComponent(bucket)}/objects/${encodeURIComponent(file.key)}`;
+
+            try {
+              const response = await fetch(url, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': contentType },
+                body,
+              });
+              const data = await response.json();
+
+              if (data.success) {
+                console.log(`✓ ${file.key}`);
+                return true;
+              }
+
+              const rateLimited =
+                data.errors && data.errors.some((e) => e.code === 10429 || (response.status >= 429));
+
+              if (rateLimited && attempt < 6) {
+                const wait = Math.min(1000 * Math.pow(2, attempt - 1), 15000);
+                console.log(`Rate limited on ${file.key}, retrying (${attempt}/5) in ${wait}ms`);
+                await sleep(wait);
+                return uploadFile(file, attempt + 1);
+              }
+
+              console.error(`Failed to upload ${file.key}:`, JSON.stringify(data));
+              return false;
+            } catch (err) {
+              if (attempt < 6) {
+                const wait = Math.min(1000 * Math.pow(2, attempt - 1), 15000);
+                console.log(`Error uploading ${file.key} (${err.message}), retrying (${attempt}/5) in ${wait}ms`);
+                await sleep(wait);
+                return uploadFile(file, attempt + 1);
+              }
+              console.error(`Failed to upload ${file.key}:`, err.message);
+              return false;
             }
           }
 
-          console.log('Starting upload to R2...');
-          uploadDir('site');
-          console.log('Upload complete!');
+          async function uploadWithConcurrency(files, concurrency) {
+            let idx = 0;
+            const failed = [];
+
+            async function worker() {
+              while (idx < files.length) {
+                const current = idx++;
+                const ok = await uploadFile(files[current]);
+                if (!ok) failed.push(files[current].key);
+              }
+            }
+
+            const workers = [];
+            for (let i = 0; i < concurrency; i++) workers.push(worker());
+            await Promise.all(workers);
+            return failed;
+          }
+
+          async function main() {
+            const files = collectFiles('site');
+            console.log(`Uploading ${files.length} files to R2 bucket '${bucket}' (concurrency 5, with retries)...`);
+
+            const failed = await uploadWithConcurrency(files, 5);
+
+            if (failed.length > 0) {
+              console.error(`${failed.length} file(s) failed to upload:`);
+              for (const key of failed) console.error(`  - ${key}`);
+              process.exitCode = 1;
+            } else {
+              console.log('All files uploaded successfully!');
+            }
+          }
+
+          main();
           EOF
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_R2_API_TOKEN }}
