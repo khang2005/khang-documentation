@@ -22,127 +22,59 @@ jobs:
       - name: Build documentation
         run: mkdocs build --strict
 
-      - name: Deploy to R2
-        run: |
-          node << 'EOF'
-          const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-          const token = process.env.CLOUDFLARE_API_TOKEN;
-          const bucket = 'docs-k8s-audit';
-          const fs = require('fs');
-          const path = require('path');
-
-          const mimeTypes = {
-            'html': 'text/html',
-            'css': 'text/css',
-            'js': 'application/javascript',
-            'json': 'application/json',
-            'png': 'image/png',
-            'jpg': 'image/jpeg',
-            'jpeg': 'image/jpeg',
-            'svg': 'image/svg+xml',
-            'ico': 'image/x-icon',
-            'xml': 'application/xml',
-            'gz': 'application/gzip',
-            'map': 'application/json',
-            'woff': 'font/woff',
-            'woff2': 'font/woff2'
-          };
-
-          function getContentType(filepath) {
-            const ext = filepath.split('.').pop()?.toLowerCase();
-            return mimeTypes[ext] || 'application/octet-stream';
-          }
-
-          function collectFiles(dir, prefix = '', out = []) {
-            for (const file of fs.readdirSync(dir)) {
-              const filepath = path.join(dir, file);
-              const stat = fs.statSync(filepath);
-              if (stat.isDirectory()) {
-                collectFiles(filepath, prefix + file + '/', out);
-              } else {
-                out.push({ filepath, key: prefix + file });
-              }
-            }
-            return out;
-          }
-
-          const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-          async function uploadFile(file) {
-            const body = fs.readFileSync(file.filepath);
-            const contentType = getContentType(file.filepath);
-            const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/r2/buckets/${encodeURIComponent(bucket)}/objects/${encodeURIComponent(file.key)}`;
-
-            for (let attempt = 1; attempt <= 4; attempt++) {
-              try {
-                const response = await fetch(url, {
-                  method: 'PUT',
-                  headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': contentType },
-                  body,
-                });
-                const data = await response.json();
-
-                if (data.success) return true;
-
-                const rateLimited =
-                  data.errors && response.status === 429;
-
-                if (rateLimited && attempt < 4) {
-                  // Back off but cap it so the job doesn't stall.
-                  const wait = Math.min(500 * attempt, 2000);
-                  console.log(`Rate limited on ${file.key}, retrying in ${wait}ms`);
-                  await sleep(wait);
-                  continue;
-                }
-
-                console.error(`Failed to upload ${file.key}:`, JSON.stringify(data));
-                return false;
-              } catch (err) {
-                console.error(`Error uploading ${file.key}:`, err.message);
-                return false;
-              }
-            }
-            return false;
-          }
-
-          async function main() {
-            const files = collectFiles('site');
-            console.log(`Uploading ${files.length} files sequentially to R2 bucket '${bucket}'...`);
-            const failed = [];
-
-            for (const file of files) {
-              const ok = await uploadFile(file);
-              if (!ok) {
-                failed.push(file.key);
-              }
-              // Small delay between requests to stay within the rate limit.
-              await sleep(150);
-            }
-
-            if (failed.length > 0) {
-              console.error(`${failed.length} file(s) failed to upload:`);
-              for (const key of failed) console.error(`  - ${key}`);
-              process.exitCode = 1;
-            } else {
-              console.log('All files uploaded successfully!');
-            }
-          }
-
-          main();
-          EOF
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_R2_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
+      - name: Install Wrangler
+        working-directory: worker
+        run: npm install
+
+      - name: Upload site to R2
+        working-directory: worker
+        run: |
+          set -euo pipefail
+          BUCKET="docs-k8s-audit"
+          SRC="../site"
+
+          content_type() {
+            case "$1" in
+              *.html|*.htm) echo "text/html";;
+              *.css)        echo "text/css";;
+              *.js)         echo "application/javascript";;
+              *.json)       echo "application/json";;
+              *.png)        echo "image/png";;
+              *.jpg|*.jpeg) echo "image/jpeg";;
+              *.gif)        echo "image/gif";;
+              *.svg)        echo "image/svg+xml";;
+              *.ico)        echo "image/x-icon";;
+              *.xml)        echo "application/xml";;
+              *.map)        echo "application/json";;
+              *.woff)       echo "font/woff";;
+              *.woff2)      echo "font/woff2";;
+              *.ttf)        echo "font/ttf";;
+              *.eot)        echo "application/vnd.ms-fontobject";;
+              *.gz)         echo "application/gzip";;
+              *)            echo "application/octet-stream";;
+            esac
+          }
+
+          find "$SRC" -type f -print0 | while IFS= read -r -d '' file; do
+            key="${file#$SRC/}"
+            echo "Uploading ${key}"
+            npx wrangler r2 object put "${BUCKET}/${key}" \
+              --file="${file}" \
+              --ct="$(content_type "$file")" \
+              --cc="public, max-age=86400"
+          done
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
       - name: Deploy Worker
         working-directory: worker
         run: |
-          npm install
           npx wrangler deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
