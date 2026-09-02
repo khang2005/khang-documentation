@@ -27,7 +27,7 @@ jobs:
           node << 'EOF'
           const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
           const token = process.env.CLOUDFLARE_API_TOKEN;
-          const bucket = 'khang-documentation';
+          const bucket = 'docs-k8s-audit';
           const fs = require('fs');
           const path = require('path');
 
