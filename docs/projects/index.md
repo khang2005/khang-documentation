@@ -23,3 +23,15 @@ A distributed sensor system collecting, processing, and visualizing environmenta
 - **Setup** - installation and configuration
 
 [Explore Sensor Hub →](sensor-hub/index.md)
+
+---
+
+## [AI Log Triage and Automated Alerting System](Ai_security_alert/index.md)
+
+An AI-assisted system that ingests error logs, groups related failures into incidents, and sends evidence-based alerts with AI-proposed root causes and remediation guidance.
+
+- **Core Principle** - AI proposes; deterministic policies control severity, routing, paging, and actions
+- **System Architecture** - ingestion, redaction, grouping, RAG, AI triage, and notifications
+- **AI and RAG Design** - evidence-backed root-cause hypotheses with confidence scoring
+
+[Explore AI Log Triage →](Ai_security_alert/index.md)

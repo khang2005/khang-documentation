@@ -79,3 +79,5 @@ nav:
           - Maintenance: projects/sensor-hub/design/maintenance.md
           - Future Improvements: projects/sensor-hub/design/future-improvements.md
           - Setup and Installation: projects/sensor-hub/setup/setup-and-installation.md
+      - AI Log Triage and Automated Alerting System:
+          - Overview: projects/Ai_security_alert/index.md
