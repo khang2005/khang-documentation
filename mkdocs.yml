@@ -63,6 +63,20 @@ nav:
           - Session Memory: projects/ai-chatbox-map/session-memory.md
           - Deployment: projects/ai-chatbox-map/deployment.md
           - Provider Comparison: projects/ai-chatbox-map/provider-comparison.md
+      - RepoLens (RAG-Based Codebase Onboarding):
+          - Overview: projects/repolens/index.md
+          - System Architecture: projects/repolens/architecture.md
+          - RAG Workflow: projects/repolens/rag-workflow.md
+          - Repository Ingestion: projects/repolens/ingestion.md
+          - Embedding & Storage: projects/repolens/embedding-storage.md
+          - Retrieval & Generation: projects/repolens/retrieval.md
+          - Citations & Hallucination: projects/repolens/citations.md
+          - API Design: projects/repolens/api-design.md
+          - Project Structure: projects/repolens/project-structure.md
+          - Deployment: projects/repolens/deployment.md
+          - Testing Strategy: projects/repolens/testing.md
+          - Setup & Usage: projects/repolens/setup.md
+          - Roadmap: projects/repolens/roadmap.md
       - Sensor Hub (Wireless Sensor Network):
           - Overview: projects/sensor-hub/index.md
           - Project Overview: projects/sensor-hub/overview/project-overview.md
